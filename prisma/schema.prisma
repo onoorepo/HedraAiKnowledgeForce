@@ -84,7 +84,29 @@ model VaultSecret {
 model Tag {
   id     String @id @default(uuid())
   name   String @unique
+  color  String? @default("#4f46e5")
+  icon   String? @default("Tag")
   nodes  Node[]
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   @default("INFO") // INFO, WARN, ERROR, SUCCESS
+  message   String   @db.Text
+  module    String?  // e.g. "Ingest", "Swarm", "Auth"
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model ProcessingTask {
+  id          String   @id @default(uuid())
+  name        String
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  progress    Int      @default(0)
+  totalChunks Int      @default(0)
+  errorMessage String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum NodeType {

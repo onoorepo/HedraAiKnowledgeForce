@@ -1,52 +1,93 @@
-import { google } from '@ai-sdk/google';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
-
-export const maxDuration = 30;
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { pinecone, indexName } from '@/lib/pinecone';
+import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  try {
+    const { messages } = await req.json();
 
-  const systemPrompt = `You are "The Boss", the primary Orchestrator Agent for HedraAiKnowledge (HAK), a Second Brain and Knowledge Graph system.
-Your job is to understand the user's intent and invoke the correct sub-agent or tool.
-You have access to tools that can search the Pinecone Vector Database, query MySQL, and interact with the user's UI by returning special XML tags like <Widget type="CHART">.
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+       return NextResponse.json({ error: "Invalid message array" }, { status: 400 });
+    }
 
-Always be professional, highly intelligent, and consider yourself the core orchestrator of Souly's knowledge base.
-If asked to explain something, you can simulate a whiteboard using <Widget type="WHITEBOARD" data="your_data_here"></Widget>.`;
+    const userQuery = lastMessage.content;
+    let contextStr = "";
 
-  // We rely on GOOGLE_GENERATIVE_AI_API_KEY or use the injected API key
-  // Normally the system handles GOOGLE_GENERATIVE_AI_API_KEY for @ai-sdk/google
-  // We can pass process.env.GEMINI_API_KEY directly if needed by wrapping it?
-  // Let's just use google('gemini-1.5-pro') and assume env var GOOGLE_GENERATIVE_AI_API_KEY is mapped.
+    // 1. Vector Search for RAG (Retrieval-Augmented Generation) Context
+    if (process.env.GEMINI_API_KEY && process.env.PINECONE_API_KEY) {
+        try {
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            
+            // Embed Query
+            const embedRes = await ai.models.embedContent({
+                model: 'text-embedding-004',
+                contents: userQuery,
+            });
 
-  process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+            if (embedRes.embeddings?.[0]?.values) {
+                // Search Pinecone
+                const index = pinecone.Index(indexName);
+                const queryResponse = await index.query({
+                   vector: embedRes.embeddings[0].values,
+                   topK: 5,
+                   includeMetadata: true
+                });
 
-  const result = streamText({
-    model: google('gemini-1.5-pro'),
-    system: systemPrompt,
-    messages,
-    tools: {
-      searchKnowledgeBase: tool({
-        description: 'Search the Pinecone Vector Database for relevant knowledge.',
-        parameters: z.object({
-          query: z.string().describe('The search query to find relevant information.'),
-        }),
-        execute: async ({ query }) => {
-          return { results: `[Simulated Pinecone Vector Search for: ${query}] \nHAK contains 1,248 nodes. Mocks state: The user is planning a massive AI migration.` };
-        },
-      }),
-      createDocumentTask: tool({
-        description: 'Trigger an update to documentation after fulfilling a user request.',
-        parameters: z.object({
-          taskName: z.string(),
-          summary: z.string()
-        }),
-        execute: async ({ taskName, summary }) => {
-          return { status: 'success', message: `Doc update scheduled for: ${taskName}` };
+                const pineconeIds = queryResponse.matches.map(m => m.id);
+                
+                // Fetch Content from DB
+                const nodes = await prisma.node.findMany({
+                   where: { pineconeId: { in: pineconeIds } }
+                });
+
+                if (nodes.length > 0) {
+                    contextStr = "Relevant context from my Second Brain:\n\n";
+                    nodes.forEach(n => {
+                        contextStr += `--- Title: ${n.title} ---\n${n.content}\n\n`;
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("RAG context fetching failed:", e);
         }
-      })
-    },
-  });
+    }
 
-  return result.toDataStreamResponse();
+    // 2. Format Messages for Gemini
+    const systemPrompt = `You are "The Boss", the primary AI orchestrator of HAK (HedraAiKnowledge) Second Brain system. 
+You act as my external cortex. 
+When answering, ALWAYS base your answers primarily on the "Context" provided below if it is relevant.
+If the context isn't sufficient, use your general knowledge, but state clearly that it's not from my Second Brain.
+Keep your answers actionable, intelligent, and perfectly formatted using Markdown. If I ask you to extract tasks or summarize large new items, mention you can pass it to the Task Extractor or Summarizer agents.
+`;
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "dummy" });
+
+    // Ensure we handle when there is no API key configured.
+    if (!process.env.GEMINI_API_KEY) {
+        return NextResponse.json({
+            role: "assistant",
+            content: "You have not configured your GEMINI_API_KEY. Please set it in the `.env` file or E2EE Vault."
+        });
+    }
+
+    // Construct prompt
+    const prompt = `${systemPrompt}\n\n${contextStr}\n\nUser Question: ${userQuery}\n\nAnswer:`;
+
+    // 3. Call AI
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+
+    return NextResponse.json({
+        role: "assistant", 
+        content: response.text
+    });
+
+  } catch (error: any) {
+    console.error("Chat API Error:", error);
+    return NextResponse.json({ error: error.message || "Failed to process chat" }, { status: 500 });
+  }
 }

@@ -11,25 +11,26 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
     loading: () => <div className="absolute inset-0 flex items-center justify-center bg-background"><div className="animate-pulse text-muted-foreground font-mono">Initializing HAK Core Graph Rendering...</div></div>
 });
 
-const genRandomTree = (N = 300) => {
-  return {
-    nodes: [...Array(N).keys()].map(i => ({ id: i, label: `Node ${i}`, group: Math.floor(Math.random() * 5) })),
-    links: [...Array(N).keys()]
-      .filter(id => id)
-      .map(id => ({
-        source: id,
-        target: Math.round(Math.random() * (id - 1))
-      }))
-  };
-};
-
 export default function GraphPage() {
   const [data, setData] = useState({ nodes: [], links: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setData(genRandomTree(100) as any);
+    // Fetch actual data from backend
+    const fetchData = async () => {
+        try {
+            const res = await fetch('/api/graph');
+            const graphData = await res.json();
+            if (graphData.nodes) {
+                setData(graphData);
+            }
+        } catch(e) {
+            console.error("Failed to fetch graph data", e);
+        }
+    };
+    
+    fetchData();
     
     // Update dimensions
     const updateDimensions = () => {

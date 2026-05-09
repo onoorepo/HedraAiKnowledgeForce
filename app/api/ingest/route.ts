@@ -55,6 +55,35 @@ export async function POST(req: Request) {
                   type: node.type
               }
           }]);
+
+          // auto relations extraction
+          try {
+             // Let's find some similar nodes to automatically create relations
+             // (We use topK: 3 to match the 2 most similar ones other than itself)
+             const searchRes = await index.query({
+                 vector: embeddingVals,
+                 topK: 3,
+                 includeMetadata: true
+             });
+
+             for (const match of searchRes.matches) {
+                 if (match.id !== pineconeId && match.score && match.score > 0.70) {
+                     const targetNode = await prisma.node.findUnique({ where: { pineconeId: match.id }});
+                     if (targetNode) {
+                         await prisma.nodeRelation.create({
+                             data: {
+                                sourceNodeId: node.id,
+                                targetNodeId: targetNode.id,
+                                relationType: "SIMILAR_TO"
+                             }
+                         });
+                     }
+                 }
+             }
+          } catch(relErr) {
+             console.error("Relation extraction failed", relErr);
+          }
+
       } catch (e) {
           console.error("Pinecone upsert failed:", e);
       }

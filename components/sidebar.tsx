@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Home, Search, BrainCircuit, Users, UploadCloud, MessageSquareText, Command, Settings, PenTool } from 'lucide-react';
+import { Home, Search, BrainCircuit, Users, UploadCloud, MessageSquareText, Command, Settings, PenTool, Database, Code, Terminal } from 'lucide-react';
 
 export function Sidebar() {
   return (
@@ -16,8 +16,11 @@ export function Sidebar() {
         <div className="space-y-1">
           <SidebarItem href="/" icon={<Home className="w-4 h-4" />} label="Dashboard" />
           <SidebarItem href="/search" icon={<Search className="w-4 h-4" />} label="Hybrid Search" />
+          <SidebarItem href="/brain" icon={<Database className="w-4 h-4 text-pink-400" />} label="Neural Inventory" />
+          <SidebarItem href="/conversations" icon={<MessageSquareText className="w-4 h-4 text-orange-400" />} label="Archive Hub" />
           <SidebarItem href="/write" icon={<PenTool className="w-4 h-4 text-emerald-400" />} label="Smart Editor" />
-          <SidebarItem href="/api-tester" icon={<Search className="w-4 h-4 text-orange-400" />} label="API Tester" />
+          <SidebarItem href="/api-tester" icon={<Code className="w-4 h-4 text-orange-400" />} label="API Tester" />
+          <SidebarItem href="/logs" icon={<Terminal className="w-4 h-4 text-blue-400" />} label="System Logs" />
           <SidebarItem href="/agents" icon={<Command className="w-4 h-4" />} label="My Agents" />
           <SidebarItem href="/import" icon={<UploadCloud className="w-4 h-4" />} label="Import Data" />
           <SidebarItem href="/graph" icon={<BrainCircuit className="w-4 h-4 text-purple-400" />} label="Knowledge Graph" />

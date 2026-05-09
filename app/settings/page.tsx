@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { MobileToolbar } from "@/components/mobile-toolbar";
-import { Settings, Tag as TagIcon, Key, Palette, Shield, Plus, Trash2, Save } from "lucide-react";
+import { Settings, Tag as TagIcon, Key, Palette, Shield, Plus, Trash2, Save, Database, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
   const [tags, setTags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
   const fetchTags = async () => {
     try {
@@ -36,6 +37,23 @@ export default function SettingsPage() {
           fetchTags();
           toast.success("Tag created");
       } catch(e) {}
+  };
+
+  const seedDatabase = async () => {
+    if (!confirm("This will populate your system with default Agents and Tags. Continue?")) return;
+    setSeeding(true);
+    try {
+        const res = await fetch("/api/seed", { method: 'POST' });
+        if (res.ok) {
+            toast.success("Database seeded successfully!");
+            fetchTags();
+        } else {
+            toast.error("Seeding failed");
+        }
+    } catch (e) {
+        toast.error("Connection error");
+    }
+    setSeeding(false);
   };
 
   return (
@@ -93,6 +111,28 @@ export default function SettingsPage() {
                             <Button variant="ghost" className="text-indigo-400 hover:text-indigo-300">Update</Button>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            {/* System Intelligence / Danger Zone */}
+            <section className="space-y-4">
+                <h2 className="text-xl font-medium flex items-center gap-2">
+                    <Database className="w-5 h-5 text-indigo-400" />
+                    System Genesis & Maintenance
+                </h2>
+                <div className="p-6 bg-white/5 border border-dashed border-white/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+                    <div>
+                        <h3 className="font-semibold text-white">Database Initial Seeding</h3>
+                        <p className="text-sm text-gray-400">Bootstrap the library with default Agents (Role definitions) and basic taxonomy.</p>
+                    </div>
+                    <Button 
+                        onClick={seedDatabase} 
+                        disabled={seeding}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 min-w-[140px]"
+                    >
+                        {seeding ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                        Run Genesis Seeder
+                    </Button>
                 </div>
             </section>
 

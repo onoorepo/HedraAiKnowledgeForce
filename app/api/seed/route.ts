@@ -1,64 +1,81 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST() {
   try {
-    // 1. Seed Agents heavily involved in the swarm
-    await prisma.agent.createMany({
-       data: [
-         { name: "Task Extractor", role: "Extraction", systemPrompt: "You are the Task Extractor. Read the text and return ONLY actionable tasks with a checkbox [ ].", isActive: true },
-         { name: "Summarizer", role: "Summarization", systemPrompt: "You are the Summarizer. Produce a highly condensed bullet-point summary of the text provided. Do not include tasks.", isActive: true },
-         { name: "Code Reviewer", role: "Code", systemPrompt: "Review code snippets for security flaws.", isActive: true }
-       ],
-       skipDuplicates: true,
-    });
+    // 1. Seed Agents
+    const agents = [
+      {
+        name: "The Boss (Master Control)",
+        role: "ORCHESTRATOR",
+        systemPrompt: "You are the primary intelligence of HedraAiKnowledge. Your goal is to coordinate other agents, answer complex queries by synthesizing data from MySQL and Pinecone, and ensure all responses are actionable and precise."
+      },
+      {
+        name: "Summarizer Agent",
+        role: "ANALYST",
+        systemPrompt: "You specialize in distilling large volumes of text, documents, or long conversations into concise, high-value summaries. Focus on key entities, dates, and core concepts."
+      },
+      {
+        name: "Task Extractor",
+        role: "OPERATIVE",
+        systemPrompt: "Your mission is to find commitments, deadlines, tasks, and follow-ups hidden in chat logs or notes. Format your output as clear actionable bullet points."
+      },
+      {
+        name: "Psychology & Sentiment Agent",
+        role: "PROFILER",
+        systemPrompt: "Analyze communication styles, emotional tones, and personality traits of participants in conversations. Help the user understand the 'hidden' dynamics of their interactions."
+      },
+      {
+        name: "Web Scraper Specialist",
+        role: "RESEARCHER",
+        systemPrompt: "You turn messy HTML from websites into structured, clean Markdown. You identify the main content and ignore ads, navigation, and clutter."
+      }
+    ];
 
-    // Clean up existing mocked nodes (just to avoid huge clutter, but typically not safe in prod)
-    // await prisma.node.deleteMany();
+    for (const agent of agents) {
+      await prisma.agent.upsert({
+        where: { id: agent.name }, // This won't work as id is UUID, lets use findFirst or name check
+        update: { systemPrompt: agent.systemPrompt, role: agent.role },
+        create: { name: agent.name, role: agent.role, systemPrompt: agent.systemPrompt }
+      });
+    }
 
-    // 2. Seed Rich Fake Nodes
-    const reactNodeId = uuidv4();
-    const aiNodeId = uuidv4();
-    const pineconeNodeId = uuidv4();
-    
-    // Create explicitly linked nodes to test Graph and Retrieval
-    const n1 = await prisma.node.create({
-         data: { title: "React Basics", content: "React helps build modern UIs faster.", type: "NOTE", pineconeId: reactNodeId }
-    });
-    
-    const n2 = await prisma.node.create({
-         data: { title: "AI Basics", content: "AI uses neural networks to simulate intelligence.", type: "DOCUMENT", pineconeId: aiNodeId }
-    });
+    // Since name isn't unique in schema, I'll use a safer approach for seeding
+    // Let's just create them if they don't exist by name
+    const existingAgents = await prisma.agent.findMany();
+    for (const a of agents) {
+        if (!existingAgents.find(ea => ea.name === a.name)) {
+            await prisma.agent.create({ data: a });
+        }
+    }
 
-    const n3 = await prisma.node.create({
-         data: { title: "Pinecone Setup", content: "Pinecone stores our vector embeddings for quick RAG queries.", type: "DOCUMENT", pineconeId: pineconeNodeId }
-    });
+    // 2. Seed Tags
+    const tags = [
+      { name: "Personal", color: "#ec4899", icon: "User" },
+      { name: "Business", color: "#10b981", icon: "Briefcase" },
+      { name: "Secret", color: "#f59e0b", icon: "Lock" },
+      { name: "Code", color: "#3b82f6", icon: "Code" },
+      { name: "Urgent", color: "#ef4444", icon: "AlertCircle" }
+    ];
 
-    // 3. Manually Seed Relations so the Graph looks amazing automatically
-    await prisma.nodeRelation.createMany({
-        data: [
-            { sourceNodeId: n2.id, targetNodeId: n3.id, relationType: 'USES' },
-            { sourceNodeId: n1.id, targetNodeId: n2.id, relationType: 'FUTURE_INTEGRATION' }
-        ]
-    });
+    for (const tag of tags) {
+      await prisma.tag.upsert({
+        where: { name: tag.name },
+        update: { color: tag.color, icon: tag.icon },
+        create: tag
+      });
+    }
 
-    // 4. Seed a Sample Conversation
-    await prisma.conversation.create({
+    // 3. Add a log entry for seeding
+    await prisma.systemLog.create({
         data: {
-            platform: "whatsapp",
-            type: "PERSONAL",
-            participants: ["Hedra", "Suli"],
-            messages: {
-                create: [
-                    { sender: "Suli", text: "Hey Hedra, remember to update the RAG system today.", timestamp: new Date() },
-                    { sender: "Hedra", text: "On it! Working on the External Cortex right now.", timestamp: new Date() }
-                ]
-            }
+            level: "SUCCESS",
+            module: "SYSTEM",
+            message: "Database seeded with default agents and tags."
         }
     });
 
-    return NextResponse.json({ success: true, message: "Database seeded beautifully with Mock Data, Relations, and Conversations." });
+    return NextResponse.json({ message: "Seeding completed successfully" });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

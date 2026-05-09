@@ -25,6 +25,7 @@ export function Sidebar() {
           <SidebarItem href="/import" icon={<UploadCloud className="w-4 h-4" />} label="Import Data" />
           <SidebarItem href="/graph" icon={<BrainCircuit className="w-4 h-4 text-purple-400" />} label="Knowledge Graph" />
           <SidebarItem href="/tasks" icon={<Activity className="w-4 h-4 text-cyan-400" />} label="Operations" />
+          <SidebarItem href="/presentation" icon={<BookOpen className="w-4 h-4 text-emerald-400" />} label="Technical Docs" />
         </div>
       </div>
       <div className="mt-auto p-6">

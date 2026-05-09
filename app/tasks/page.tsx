@@ -34,6 +34,13 @@ export default function TasksPage() {
       }
   };
 
+  const deleteTask = async (id: string) => {
+    try {
+        await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+        setTasks(tasks.filter(t => t.id !== id));
+    } catch(e) {}
+  };
+
   return (
     <div className="flex h-full w-full">
       <Sidebar />
@@ -95,7 +102,7 @@ export default function TasksPage() {
                              Started: {new Date(task.createdAt).toLocaleString()}
                          </span>
                          {task.status !== 'PROCESSING' && (
-                             <Button size="icon" variant="ghost" className="h-8 w-8 text-red-400">
+                             <Button onClick={() => deleteTask(task.id)} size="icon" variant="ghost" className="h-8 w-8 text-red-400">
                                  <Trash2 className="w-4 h-4" />
                              </Button>
                          )}

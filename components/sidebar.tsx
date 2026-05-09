@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Home, Search, BrainCircuit, Users, UploadCloud, MessageSquareText, Command, Settings, PenTool, Database, Code, Terminal } from 'lucide-react';
+import { Home, Search, BrainCircuit, Users, UploadCloud, MessageSquareText, Command, Settings, PenTool, Database, Code, Terminal, Activity, Shield } from 'lucide-react';
 
 export function Sidebar() {
   return (
@@ -24,6 +24,7 @@ export function Sidebar() {
           <SidebarItem href="/agents" icon={<Command className="w-4 h-4" />} label="My Agents" />
           <SidebarItem href="/import" icon={<UploadCloud className="w-4 h-4" />} label="Import Data" />
           <SidebarItem href="/graph" icon={<BrainCircuit className="w-4 h-4 text-purple-400" />} label="Knowledge Graph" />
+          <SidebarItem href="/tasks" icon={<Activity className="w-4 h-4 text-cyan-400" />} label="Operations" />
         </div>
       </div>
       <div className="mt-auto p-6">

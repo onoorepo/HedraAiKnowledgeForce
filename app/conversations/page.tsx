@@ -63,9 +63,49 @@ export default function ConversationsPage() {
                         <p className="text-sm text-gray-400 line-clamp-2 mb-4 leading-relaxed">
                             {c.messages?.[0]?.text || "No preview available..."}
                         </p>
-                        <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" className="text-[10px] h-7 bg-white/5 hover:bg-white/10">Analyze with AI</Button>
-                            <Button size="sm" variant="ghost" className="text-[10px] h-7 bg-white/5 hover:bg-white/10">Extract Entities</Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button 
+                                onClick={async () => {
+                                    const res = await fetch("/api/conversations/analyze", {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ conversationId: c.id, action: 'SUMMARY' })
+                                    });
+                                    const data = await res.json();
+                                    alert(data.result);
+                                }}
+                                size="sm" variant="ghost" className="text-[10px] h-7 bg-white/5 hover:bg-white/10"
+                            >
+                                Summary
+                            </Button>
+                            <Button 
+                                onClick={async () => {
+                                    const res = await fetch("/api/conversations/analyze", {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ conversationId: c.id, action: 'EXTRACT_TASKS' })
+                                    });
+                                    const data = await res.json();
+                                    alert(data.result);
+                                }}
+                                size="sm" variant="ghost" className="text-[10px] h-7 bg-white/5 hover:bg-white/10"
+                            >
+                                Tasks
+                            </Button>
+                            <Button 
+                                onClick={async () => {
+                                    const res = await fetch("/api/conversations/analyze", {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ conversationId: c.id, action: 'PSYCHOLOGY' })
+                                    });
+                                    const data = await res.json();
+                                    alert(data.result);
+                                }}
+                                size="sm" variant="ghost" className="text-[10px] h-7 bg-white/5 hover:bg-white/10"
+                            >
+                                Analysis
+                            </Button>
                         </div>
                     </div>
                 ))}

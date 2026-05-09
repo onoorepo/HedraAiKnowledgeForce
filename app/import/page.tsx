@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileToolbar } from "@/components/mobile-toolbar";
 import { Button } from "@/components/ui/button";
 import { UploadCloud, FileJson, Brain } from "lucide-react";
+import { toast } from "sonner";
 
 export default function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -22,59 +23,87 @@ export default function ImportPage() {
   const processFile = async () => {
       if (!file) return;
       setLoading(true);
-      setStatus("Reading file...");
-      setLogs([]);
-      setProgress(0);
-
+      setStatus("Analyzing payload for mass ingestion...");
+      
       try {
           const text = await file.text();
-          
-          // Simple Chunking
           const chunkSize = 2000;
           const chunks = [];
           for (let i = 0; i < text.length; i += chunkSize) {
               chunks.push(text.substring(i, i + chunkSize));
           }
 
-          setStatus(`Found ${chunks.length} chunks. Sending to Swarm...`);
+          // 1. Create Task in DB
+          const taskRes = await fetch("/api/tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                  name: `Ingesting: ${file.name}`,
+                  totalChunks: chunks.length
+              })
+          });
+          const task = await taskRes.json();
 
-          for (let i = 0; i < chunks.length; i++) {
-              setStatus(`Processing chunk ${i+1}/${chunks.length} via Swarm...`);
-              
-              // 1. Swarm Processing
-              const swarmRes = await fetch("/api/swarm", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ text: chunks[i] })
-              });
-              
-              const swarmData = await swarmRes.json();
-              
-              if (swarmData.success) {
-                  setLogs((prev) => [...prev, `[Chunk ${i+1}] Summarized & Tasks Extracted.`]);
-                  
-                  // 2. Ingest Summary to DB/Pinecone
-                  await fetch("/api/ingest", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ 
-                          title: `Import Fragment ${i+1}/${chunks.length}`, 
-                          content: swarmData.summaryData + "\n\nTasks:\n" + swarmData.extractedTasks,
-                          type: "DOCUMENT"
-                      })
-                  });
-              } else {
-                  setLogs((prev) => [...prev, `[Chunk ${i+1}] Error: ${swarmData.error}`]);
-              }
-              
-              setProgress(Math.round(((i + 1) / chunks.length) * 100));
-          }
+          if (!task.id) throw new Error("Registry failed to spawn task.");
+
+          setStatus(`Background Job Created [ID: ${task.id}]. Redirecting to Operations...`);
           
-          setStatus("Data successfully integrated into Second Brain.");
+          // Trigger the processing (this still runs in background as long as page is open, 
+          // but we track it in DB so we can resume or see failures later)
+          toast.success("Mass ingestion task registered.");
+          
+          // Non-blocking processing kickoff
+          (async () => {
+              for (let i = 0; i < chunks.length; i++) {
+                  try {
+                      const swarmRes = await fetch("/api/swarm", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: chunks[i] })
+                      });
+                      const swarmData = await swarmRes.json();
+                      
+                      if (swarmData.success) {
+                          await fetch("/api/ingest", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ 
+                                  title: `Import Fragment [${file.name}] p${i+1}`, 
+                                  content: swarmData.summaryData + "\n\nTasks:\n" + swarmData.extractedTasks,
+                                  type: "DOCUMENT"
+                              })
+                          });
+                      }
+
+                      // Update Task Progress in DB
+                      await fetch(`/api/tasks/${task.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ 
+                              progress: Math.round(((i + 1) / chunks.length) * 100),
+                              status: i === chunks.length - 1 ? "COMPLETED" : "PROCESSING"
+                          })
+                      });
+                  } catch (err) {
+                      await fetch(`/api/tasks/${task.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: "FAILED", errorMessage: String(err) })
+                      });
+                      break;
+                  }
+              }
+          })();
+
+          // Redirect user to Tasks page to monitor
+          setTimeout(() => {
+              window.location.href = "/tasks";
+          }, 2000);
+
       } catch (e: any) {
-          setStatus("Error formatting file: " + e.message);
+          setStatus("Critical Error: " + e.message);
+          toast.error("Injection failed.");
       }
-      setLoading(false);
   };
 
   return (
